@@ -63,9 +63,12 @@ done
 # Compile source code
 echo "[5/5] Compile source code into executable binary ..."
 cd ../build
-make compile
+make pack
+
+echo "[*] Provide launch-all.sh executable ..."
+cp build/releses/nextflow*-all launch-all.sh
 
 # Done
-echo "[*] Program done! Please use 'launch.sh'"
+echo "[*] Program done! Please use 'launch-all.sh'"
 echo "[*] HINT: You may have to switch to 'build' dir !!!"
 exit 0
