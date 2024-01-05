@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Monitoring Report</title>
+    </head>
+    <body>
+        <h1>
+            <ins>
+                Monitoring Report
+            </ins>
+        </h1>
+        <h3>Executed Workflow: {{ wf_name }}</h3>
+        <p>This report contains resource statistics for each task of the workflow.</p>
+        <ul>
+            {% for task in tasks -%}
+                <li>
+                    {{ task.name }}
+                    (
+                        <a href="{{ task.cpu_plot }}">CPU</a>,
+                        <a href="{{ task.mem_plot }}">Memory</a>,
+                        <a href="{{ task.io_plot }}">Disk-IO</a>
+                    )
+                </li>
+            {% endfor %}
+        </ul>
+    <small>Note: Some (short living) tasks may be missing.</small>
+    </body>
+</html>

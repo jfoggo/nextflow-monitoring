@@ -1,0 +1,6 @@
+influxdb_client
+numpy
+pandas
+matplotlib
+colorama==0.3.9
+jinja2
