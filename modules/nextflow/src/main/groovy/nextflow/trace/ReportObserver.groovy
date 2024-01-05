@@ -76,6 +76,16 @@ class ReportObserver implements TraceObserver {
     boolean overwrite
 
     /**
+     * Save list of InfluxConnector Instances (periodically fetching task metrics)
+     */
+    private Map<String,InfluxConnector> influxConnectorList = new HashMap<>()
+
+    /**
+     * This is the name for the influx-db bucket (will be generated in function: onFlowCreate)
+     */
+    private String bucketName
+
+    /**
      * Creates a report observer
      *
      * @param file The file path where to store the resulting HTML report document
@@ -131,6 +141,12 @@ class ReportObserver implements TraceObserver {
         // check if the process exists
         if( Files.exists(reportFile) && !overwrite )
             throw new AbortOperationException("Report file already exists: ${reportFile.toUriString()} -- enable the 'report.overwrite' option in your config file to overwrite existing files")
+
+        // Generate new name for influx-db bucket
+        this.bucketName = session.getWorkflowMetadata().start.format("YYYY_MM_dd-HH_mm_ss") + " --> " + session.getWorkflowMetadata().projectName
+        // Use (dummy) influx-connector instance to create new influx-db bucket
+        InfluxConnector con = new InfluxConnector(null,null,null,0,0,null,null,null)
+        con.createBucket(this.bucketName)
     }
 
     /**
@@ -139,6 +155,39 @@ class ReportObserver implements TraceObserver {
     @Override
     void onFlowComplete() {
         log.debug "Workflow completed -- rendering execution report"
+
+        try {
+            // Execute clustering-unit
+            log.debug "[*] Starting clustering unit ..."
+            ProcessBuilder builder = new ProcessBuilder()
+            builder.command(["/usr/bin/create_monitoring_report.py",session.getWorkflowMetadata().projectName,this.bucketName])
+            Process process = builder.start()
+            // Wait until finished
+            process.waitFor()
+            // Parse process output
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))
+            String line = reader.readLine()
+            while (line){
+                log.debug "[INFO] ==> $line"
+                line = reader.readLine()
+            }
+            // Handle exit value accordingly
+            int rc = process.exitValue()
+            if (rc == 0) log.debug "[*] The clustering unit has created the monitoring report!"
+            else {
+                reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))
+                line = reader.readLine()
+                while (line){
+                    log.debug "[ERR] ==> $line"
+                    line = reader.readLine()
+                }
+                log.debug "[*] The clustering unit failed somehow ... (rc=$rc)"
+            }
+        }
+        catch(Exception e){
+            log.warn "[*] Failed to create clustering-report --- see log file for details", e
+        }
+
         try {
             renderHtml()
         }
@@ -177,6 +226,27 @@ class ReportObserver implements TraceObserver {
     @Override
     void onProcessStart(TaskHandler handler, TraceRecord trace) {
         log.trace "Trace report - start process > $handler"
+
+        // Extract required variables for influx connector class
+        String pid = trace.get("native_id")
+        String tid = trace.get("task_id")
+        String taskName = trace.get("name")
+        int collect_delay = 0
+        int collect_interval = 1
+        String myWorkDir = trace.getWorkDir()
+        String cleanedTaskName = taskName.replaceAll("\\W","_")
+        int max_cores = trace.get("cpus") as int
+        String max_mem = trace.get("memory")
+        String max_disk = trace.get("disk")
+
+        // Create and start new influx connector instance for current task
+        log.debug("[*] Starting influx connector for PID=${pid} (${(trace.get("name") as String).replaceAll("\\W","_")}")
+        InfluxConnector con = new InfluxConnector(pid,tid,taskName,collect_delay,collect_interval,this.bucketName,myWorkDir,cleanedTaskName)
+        con.setMaxValues(max_cores,max_mem,max_disk)
+        con.startCollectingMetrics()
+        // Add instance to monitoring list
+        influxConnectorList.put(pid,con)
+
         synchronized (records) {
             records[ trace.taskId ] = trace
         }
@@ -193,6 +263,13 @@ class ReportObserver implements TraceObserver {
         if( !trace ) {
             log.debug "WARN: Unable to find trace record for task id=${handler.task?.id}"
             return
+        }
+
+        String pid = trace.get("native_id")
+        InfluxConnector con = influxConnectorList.remove(pid)
+        if (con) {
+            log.debug("[*] Stopping influx connector for PID=${pid} (${(trace.get("name") as String).replaceAll("\\W","_")})")
+            con.stopCollectingMetrics()
         }
 
         synchronized (records) {

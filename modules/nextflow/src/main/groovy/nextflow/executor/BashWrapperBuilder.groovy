@@ -116,8 +116,11 @@ class BashWrapperBuilder {
 
     private BashTemplateEngine engine = new BashTemplateEngine()
 
+    private String taskName     // Store taskname as class variable for later use (DockerBuilder --cidfile)
+
     BashWrapperBuilder( TaskRun task ) {
         this(new TaskBean(task))
+        this.taskName = task.getName()  // Set taskname for later use (DockerBuilder --cidfile)
     }
 
     BashWrapperBuilder( TaskBean bean, ScriptFileCopyStrategy strategy = null ) {
@@ -539,7 +542,7 @@ class BashWrapperBuilder {
 
     @PackageScope
     ContainerBuilder createContainerBuilder0(String engine) {
-        ContainerBuilder.create(engine, containerImage)
+        ContainerBuilder.create2(engine, containerImage, workDir.toString(), taskName)
     }
 
     protected boolean getAllowContainerMounts() {

@@ -53,6 +53,27 @@ abstract class ContainerBuilder<V extends ContainerBuilder> {
         throw new IllegalArgumentException("Unknown container engine: $engine")
     }
 
+    static ContainerBuilder create2(String engine, String containerImage, String workDir, String taskName) {
+        if( engine == 'docker' )
+            return new DockerBuilder(containerImage,workDir,taskName)    // Provide workdir + taskname to DockerBuilder (for --cidfile)
+        if( engine == 'podman' )
+            return new PodmanBuilder(containerImage)
+        if( engine == 'singularity' )
+            return new SingularityBuilder(containerImage)
+        if( engine == 'apptainer' )
+            return new ApptainerBuilder(containerImage)
+        if( engine == 'udocker' )
+            return new UdockerBuilder(containerImage)
+        if( engine == 'sarus' )
+            return new SarusBuilder(containerImage)
+        if( engine == 'shifter' )
+            return new ShifterBuilder(containerImage)
+        if( engine == 'charliecloud' )
+            return new CharliecloudBuilder(containerImage)
+        //
+        throw new IllegalArgumentException("Unknown container engine: $engine")
+    }
+
     final protected List env = []
 
     final protected List<Path> mounts = []

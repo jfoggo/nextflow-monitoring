@@ -52,8 +52,18 @@ class DockerBuilder extends ContainerBuilder<DockerBuilder> {
 
     private String capAdd
 
+    private String myWorkDir    // Store workdir as class variable for later use (docker run --cidfile)
+
+    private String taskName     // Store taskname as class variable for later use (docker run --cidfile)
+
     DockerBuilder( String name ) {
         this.image = name
+    }
+
+    DockerBuilder( String name, String myWorkDir, String taskName) {
+        this.image = name
+        this.myWorkDir = myWorkDir      // Set workdir for later use (docker run --cidfile)
+        this.taskName = taskName        // Set taskname for later use (docker run --cidfile)
     }
 
     @Override
@@ -127,6 +137,13 @@ class DockerBuilder extends ContainerBuilder<DockerBuilder> {
             result << engineOptions.join(' ') << ' '
 
         result << 'run -i '
+
+        // Check if workdir and taskname was provided (should be allways provided)
+        if (myWorkDir && taskName) {
+            // Save container-id to file: <workdir>/cidfile_<taskname>.txt
+            String cidFile = "${myWorkDir}/cidfile_${taskName.replaceAll("\\W","_")}.txt"
+            result << "--cidfile=${cidFile} "
+        }
 
         if( cpus && !legacy )
             result << "--cpu-shares ${cpus * 1024} "
